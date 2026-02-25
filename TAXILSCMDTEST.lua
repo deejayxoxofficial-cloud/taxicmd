@@ -2,7 +2,7 @@ local sampev = require 'lib.samp.events'
 local requests = require 'requests' 
 
 -- CONFIGURARE AUTO-UPDATE (AICI MODIFICI TU DUPA CE FACI GITHUB-UL)
-local script_version = 1.1
+local script_version = 0.8
 local script_name = "TAXILSCMDTEST"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXILSCMDTEST.lua"
@@ -34,15 +34,36 @@ function checkUpdate()
         if ok and response.status_code == 200 then
             local json = response.json()
             if json and json.version > script_version then
-                sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Se descarca update v" .. json.version .. "...", -1)
-                local dl_ok, dl = pcall(requests.get, download_url)
-                if dl_ok and dl.status_code == 200 then
-                    local file = io.open(thisScript().path, "wb")
-                    file:write(dl.text)
-                    file:close()
-                    sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Update finalizat! Scriptul se reincarca...", -1)
-                    thisScript():reload()
-                end
+                -- Afisam un Dialog Box in loc de mesaj in chat
+                sampShowDialog(1337, "{FFFF00}Update Disponibil", 
+                    "{FFFFFF}O versiune noua a modului {FFFF00}"..script_name.."{FFFFFF} a fost gasita!\n\n"..
+                    "Versiune curenta: {FF0000}"..script_version.."\n"..
+                    "Versiune noua: {33CC33}"..json.version.."\n\n"..
+                    "Doresti sa descarci actualizarea acum?", 
+                    "Update", "Cancel", 0)
+                
+                -- Verificam ce buton apasa user-ul
+                lua_thread.create(function()
+                    local result, button, list, input = sampHasDialogRespond(1337)
+                    while not result do 
+                        wait(0) 
+                        result, button, list, input = sampHasDialogRespond(1337)
+                    end
+                    
+                    if button == 1 then -- Daca a apasat Update
+                        sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Se descarca update v" .. json.version .. "...", -1)
+                        local dl_ok, dl = pcall(requests.get, download_url)
+                        if dl_ok and dl.status_code == 200 then
+                            local file = io.open(thisScript().path, "wb")
+                            file:write(dl.text)
+                            file:close()
+                            sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Update finalizat! Scriptul se reincarca...", -1)
+                            thisScript():reload()
+                        end
+                    else
+                        sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Update anulat.", -1)
+                    end
+                end)
             end
         end
     end)
