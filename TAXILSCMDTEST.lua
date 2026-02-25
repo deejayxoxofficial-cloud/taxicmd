@@ -4,8 +4,8 @@ local requests = require 'requests'
 -- CONFIGURARE AUTO-UPDATE (AICI MODIFICI TU DUPA CE FACI GITHUB-UL)
 local script_version = 1.0
 local script_name = "TAXILSCMDTEST"
-local update_url = "AICI_PUI_LINK_RAW_VERSION_JSON" 
-local download_url = "AICI_PUI_LINK_RAW_LUA"
+local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
+local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXILSCMDTEST.lua"
 
 local total_units = 0 
 
