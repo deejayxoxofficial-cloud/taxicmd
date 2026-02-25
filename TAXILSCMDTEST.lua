@@ -2,7 +2,7 @@ local sampev = require 'lib.samp.events'
 local requests = require 'requests' 
 
 -- CONFIGURARE AUTO-UPDATE (AICI MODIFICI TU DUPA CE FACI GITHUB-UL)
-local script_version = 0.8
+local script_version = 0.9
 local script_name = "TAXILSCMDTEST"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXILSCMDTEST.lua"
@@ -179,4 +179,5 @@ function main()
     end)
 
     wait(-1)
+
 end
