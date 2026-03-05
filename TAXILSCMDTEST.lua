@@ -159,15 +159,19 @@ function main()
         sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Scoruri resetate manual.", -1)
     end)
 	
--- Fortam verificarea la 3 secunde dupa ce dai /luareset
+-- THREAD CARE ASTEAPTA LOGAREA
     lua_thread.create(function()
-        wait(3000)
-        checkUpdate()
-    end)
-
-    -- Comanda manuala pentru test
-    sampRegisterChatCommand("updatecmd", function()
-        sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Verificare manuala...", -1)
+        -- Daca dai /luareset si esti deja logat, asteptam doar 3 secunde
+        if sampIsLocalPlayerSpawned() then
+            wait(3000)
+        else
+            -- Daca abia ai intrat pe server, asteptam pana treci de login (spawn)
+            while not sampIsLocalPlayerSpawned() do wait(1000) end
+            -- Dupa ce te-ai spawnat, mai asteptam 5 secunde sa dispara textele serverului
+            wait(5000)
+        end
+        
+        -- Abia acum pornim verificarea automata
         checkUpdate()
     end)
 
