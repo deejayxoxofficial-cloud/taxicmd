@@ -3,7 +3,7 @@ local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
 local script_version = 2.4
-local last_update = "05/03/2026 - 12:46"
+local last_update = "05/03/2026 - 13:40"
 local script_name = "TAXICMD"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXICMD.lua"
@@ -113,13 +113,15 @@ local questions = {
 			"Sa incepem!"
         }
     },
-    practic = {
-        "Proba teoretica a fost trecuta cu succes!",
-        "Acum vom incepe proba practica.",
-        "Greselile de la proba practica au fost setate la (0/3)."
+ practic = {
+        "Testul teoretic s-a incheiat, sa trecem la cel practic.",
+        "Pentru ocolire vei primit 0.5/3, pentru locatie nestiuta vei primi 1/3.",
+        "Punctajul pe care l-ai obtinut la teoretic este separat de cel practic.",
+		"Mult succes!"
     }
 }
-
+}
+local update_started = false
 function main()
     while not isSampAvailable() do wait(100) end
     
@@ -158,9 +160,18 @@ function main()
     end)
 	
 	
-   lua_thread.create(function()
-        wait(120000) -- Așteaptă 120 de secunde (2 minute)
-        checkUpdate()
+ -- Loop care asteapta sa te loghezi (sa fii spawnat pe harta)
+    lua_thread.create(function()
+        -- Cat timp playerul nu e spawned (e la login), asteptam
+        while not sampIsLocalPlayerSpawned() do wait(1000) end
+        
+        -- Dupa ce te-ai spawnat, mai asteptam 3 secunde sa treaca mesajele serverului
+        wait(3000)
+        
+        if not update_started then
+            checkUpdate()
+            update_started = true
+        end
     end)
 
     wait(-1)
@@ -380,32 +391,39 @@ end
 
 function checkUpdate()
     lua_thread.create(function()
-        -- Adăugăm ?t=os.time() ca să nu ia varianta veche din cache-ul GitHub
+        -- Păcălim cache-ul GitHub cu os.time()
         local ok, response = pcall(requests.get, update_url .. "?t=" .. os.time())
+        
         if ok and response.status_code == 200 then
             local json = response.json()
+            
             if json and json.version > script_version then
-                sampShowDialog(1337, "{FFFF00}Update Disponibil", "{FFFFFF}O noua versiune ({33CC33}"..json.version.."{FFFFFF}) este gata!\n\nApasa Update pentru instalare.", "Update", "Nu", 0)
+                -- Afișăm dialogul
+                sampShowDialog(1337, "{FFFF00}Update Disponibil", "{FFFFFF}O noua versiune ({33CC33}v" .. json.version .. "{FFFFFF}) este gata!\n\n{FFFFFF}Vrei sa o instalezi?", "Update", "Anuleaza", 0)
                 
                 local result, button = 0, -1
                 while result == 0 do
                     wait(0)
                     result, button = sampHasDialogRespond(1337)
+                    
                     if result == 1 then
                         if button == 1 then
-                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca update-ul...", -1)
-                            -- Downloadam fisierul nou
+                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca versiunea {33CC33}v" .. json.version .. "{FFFFFF}...", -1)
+                            
                             local dl_ok, dl_res = pcall(requests.get, download_url .. "?t=" .. os.time())
                             if dl_ok and dl_res.status_code == 200 then
-                                -- Salvăm peste fișierul actual
                                 local f = io.open(thisScript().path, "wb")
                                 f:write(dl_res.text)
                                 f:close()
-                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Gata! Modul se restarteaza...", -1)
-                                wait(1000)
+                                
+                                -- Mesajul de succes pe care l-ai cerut
+                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Modul a fost actualizat cu succes la versiunea v" .. json.version .. "!", -1)
+                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Restartare automata...", -1)
+                                
+                                wait(2000)
                                 thisScript():reload()
                             else
-                                sampAddChatMessage("{FF0000}Eroare la download!", -1)
+                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la descarcare!", -1)
                             end
                         end
                         break
