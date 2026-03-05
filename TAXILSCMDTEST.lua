@@ -2,8 +2,8 @@ local requests = require 'requests'
 local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
-local script_version = 2.7
-local last_update = "05/03/2026 - 14:25"
+local script_version = 2.8
+local last_update = "05/03/2026 - 15:34"
 local script_name = "TAXICMD"
 -- Link-urile update(cu anti-cache inclus direct)
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json"
@@ -392,66 +392,59 @@ end
 
 function checkUpdate()
     lua_thread.create(function()
-        -- Trimitem cererea către GitHub (cu anti-cache)
-        local ok, response = pcall(requests.get, update_url .. "&t=" .. os.time(), {
+        -- Folosim link-urile simple, fara adaugiri manuale care pot strica URL-ul
+        local ok, response = pcall(requests.get, update_url, {
             headers = { ["User-Agent"] = "Mozilla/5.0" }
         })
         
         if ok and response.status_code == 200 then
             local json = response.json()
             
-            -- Verificăm dacă fișierul JSON e valid și are versiune
             if json and json.version then
-                -- LINIA DE VERIFICARE MATEMATICĂ (tonumber previne loop-ul infinit)
+                -- Debug: Sterge "--" de mai jos daca vrei sa vezi in chat ce versiune vede scriptul pe GitHub
+                -- sampAddChatMessage("DEBUG: PC v" .. script_version .. " | GitHub v" .. json.version, -1)
+
+                -- Verificam matematic: daca versiunea de pe net e mai mare decat cea din PC
                 if tonumber(json.version) > tonumber(script_version) then
                     
-                    -- AFIȘĂM DIALOGUL (ID 2222)
-                    sampShowDialog(2222, "{FFFF00}Update Disponibil v" .. json.version, "{FFFFFF}O noua versiune a fost gasita pe GitHub!\n\n{FFFFFF}Versiunea ta: {FF0000}v" .. script_version .. "{FFFFFF}\nVersiunea noua: {33CC33}v" .. json.version .. "{FFFFFF}\n\nDoresti sa instalezi actualizarea?", "Update", "Anuleaza", 0)
+                    sampShowDialog(2222, "{FFFF00}Update Disponibil v" .. json.version, "{FFFFFF}O noua versiune a fost gasita!\n\n{FFFFFF}Vrei sa o instalezi acum?", "Update", "Anuleaza", 0)
                     
-                    -- BUCAL CARE AȘTEAPTĂ CLICK-UL PE BUTON
                     while true do
                         wait(0)
                         local result, button = sampHasDialogRespond(2222)
                         
                         if result then 
-                            if button == 1 then -- S-a apăsat butonul "Update"
+                            if button == 1 then 
                                 sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca versiunea {33CC33}v" .. json.version .. "{FFFFFF}...", -1)
                                 
-                                -- DESCĂRCAREA FIȘIERULUI .LUA
-                                local dl_ok, dl_res = pcall(requests.get, download_url .. "&t=" .. os.time(), {
+                                local dl_ok, dl_res = pcall(requests.get, download_url, {
                                     headers = { ["User-Agent"] = "Mozilla/5.0" }
                                 })
                                 
                                 if dl_ok and dl_res.status_code == 200 then
-                                    -- Scriem noul cod peste fișierul actual
                                     local f = io.open(thisScript().path, "wb")
                                     if f then
                                         f:write(dl_res.text)
                                         f:close()
                                         
-                                        -- MESAJUL DE SUCCES CERUT
                                         sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Modul a fost actualizat cu succes la versiunea v" .. json.version .. "!", -1)
                                         wait(1500)
                                         thisScript():reload()
                                     else
-                                        sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare: Nu am permisiuni de scriere!", -1)
+                                        sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare: Permisiuni scriere!", -1)
                                     end
                                 else
-                                    sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la descarcare! (Cod: " .. tostring(dl_res and dl_res.status_code or "N/A") .. ")", -1)
+                                    sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la download!", -1)
                                 end
                             end
-                            break -- Ieșim din buclă după ce s-a interacționat cu dialogul
+                            break 
                         end
                     end
-                else
-                    -- OPTIONAL: Mesaj dacă ești deja la zi
-                    -- sampAddChatMessage("{33CC33}[" .. script_name .. "] Esti deja la ultima versiune (v" .. script_version .. ").", -1)
                 end
             end
         end
     end)
 end
-
 function downloadNewVersion(v)
     lua_thread.create(function()
         sampAddChatMessage("{FFFF00}[" .. script_name .. "] Se descarca v" .. v .. "...", -1)
