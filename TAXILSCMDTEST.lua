@@ -2,12 +2,12 @@ local requests = require 'requests'
 local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
-local script_version = 2.5
+local script_version = 2.4
 local last_update = "05/03/2026 - 13:40"
 local script_name = "TAXICMD"
 -- Link-urile update(cu anti-cache inclus direct)
-local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" .. os.time()
-local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXILSCMDTEST.lua" .. os.time()
+local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json"
+local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXILSCMDTEST.lua"
 
 -- VARIABILE TEST
 local greseli_teorie = 0
@@ -159,11 +159,15 @@ function main()
         sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Scoruri resetate manual.", -1)
     end)
 	
-	
--- Asteptam sa treci de login (spawn)
+-- Fortam verificarea la 3 secunde dupa ce dai /luareset
     lua_thread.create(function()
-        while not sampIsLocalPlayerSpawned() do wait(1000) end
-        wait(5000) -- 5 secunde dupa spawn
+        wait(3000)
+        checkUpdate()
+    end)
+
+    -- Comanda manuala pentru test
+    sampRegisterChatCommand("updatecmd", function()
+        sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Verificare manuala...", -1)
         checkUpdate()
     end)
 
@@ -384,50 +388,72 @@ end
 
 function checkUpdate()
     lua_thread.create(function()
-        -- 1. Verificăm versiunea (cu Header de browser)
-        local ok, response = pcall(requests.get, update_url, {
+        -- Adaugam un parametru aleatoriu la finalul link-ului ca sa pacalim cache-ul
+        local final_url = update_url .. "?t=" .. os.time()
+        
+        local ok, response = pcall(requests.get, final_url, {
             headers = { ["User-Agent"] = "Mozilla/5.0" }
         })
         
-        if ok and response.status_code == 200 then
-            local json = response.json()
-            if json and json.version > script_version then
-                sampShowDialog(2222, "{FFFF00}Update Disponibil v" .. json.version, "{FFFFFF}O noua versiune a fost gasita!\n\n{FFFFFF}Apasati {FFFF00}Update {FFFFFF}pentru instalare.", "Update", "Anuleaza", 0)
+        if not ok then
+            sampAddChatMessage("{FF0000}[" .. script_name .. "] EROARE: Biblioteca 'requests' a esuat.", -1)
+            return
+        end
+
+        if response.status_code ~= 200 then
+            sampAddChatMessage("{FF0000}[" .. script_name .. "] EROARE GITHUB: Cod HTTP " .. response.status_code, -1)
+            sampAddChatMessage("{AAAAAA}Verifica daca repository-ul este PUBLIC si link-ul e bun.", -1)
+            return
+        end
+
+        local json = response.json()
+        if json and json.version then
+            -- Mesaj de debug sa vedem ce citeste scriptul
+            sampAddChatMessage("{FFFF00}[" .. script_name .. "] Verificare: PC v" .. script_version .. " | GitHub v" .. json.version, -1)
+            
+            if tonumber(json.version) > tonumber(script_version) then
+                sampShowDialog(2222, "{FFFF00}Update Disponibil", "{FFFFFF}Vrei sa treci la v" .. json.version .. "?", "Update", "Nu", 0)
                 
                 while true do
                     wait(0)
                     local result, button = sampHasDialogRespond(2222)
-                    if result then 
-                        if button == 1 then 
-                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca... Te rugam sa astepti.", -1)
-                            
-                            -- 2. DESCĂRCAREA PROPRIU-ZISĂ (CU HEADER)
-                            local dl_ok, dl_res = pcall(requests.get, download_url, {
-                                headers = { ["User-Agent"] = "Mozilla/5.0" }
-                            })
-                            
-                            if dl_ok and dl_res.status_code == 200 then
-                                -- Salvăm fișierul
-                                local f = io.open(thisScript().path, "wb")
-                                if f then
-                                    f:write(dl_res.text)
-                                    f:close()
-                                    sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Succes! Versiunea v" .. json.version .. " a fost instalata.", -1)
-                                    wait(1500)
-                                    thisScript():reload()
-                                else
-                                    sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare: Nu pot scrie fisierul (Permisiuni Windows)!", -1)
-                                end
-                            else
-                                -- Dacă dă eroare, ne va zice exact codul (ex. 404, 403, 500)
-                                local err_code = (dl_res and dl_res.status_code) or "TIMEOUT"
-                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la download! Cod HTTP: " .. tostring(err_code), -1)
-                            end
+                    if result then
+                        if button == 1 then
+                            downloadNewVersion(json.version)
                         end
-                        break 
+                        break
                     end
                 end
+            else
+                sampAddChatMessage("{33CC33}[" .. script_name .. "] Esti deja la ultima versiune.", -1)
             end
+        else
+            sampAddChatMessage("{FF0000}[" .. script_name .. "] EROARE: Fisierul JSON de pe GitHub nu este valid.", -1)
+        end
+    end)
+end
+
+function downloadNewVersion(v)
+    lua_thread.create(function()
+        sampAddChatMessage("{FFFF00}[" .. script_name .. "] Se descarca v" .. v .. "...", -1)
+        
+        local dl_ok, dl_res = pcall(requests.get, download_url .. "?t=" .. os.time(), {
+            headers = { ["User-Agent"] = "Mozilla/5.0" }
+        })
+        
+        if dl_ok and dl_res.status_code == 200 then
+            local f = io.open(thisScript().path, "wb")
+            if f then
+                f:write(dl_res.text)
+                f:close()
+                sampAddChatMessage("{33CC33}[" .. script_name .. "] Update reusit! Restartare...", -1)
+                wait(1000)
+                thisScript():reload()
+            else
+                sampAddChatMessage("{FF0000}EROARE: Nu pot scrie fisierul pe disk!", -1)
+            end
+        else
+            sampAddChatMessage("{FF0000}EROARE LA DOWNLOAD: Cod HTTP " .. (dl_res.status_code or "N/A"), -1)
         end
     end)
 end
