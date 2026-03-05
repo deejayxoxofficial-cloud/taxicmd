@@ -7,6 +7,7 @@ local last_update = "05/03/2026 - 13:40"
 local script_name = "TAXICMD"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXICMD.lua"
+local update_started = false
 
 -- VARIABILE TEST
 local greseli_teorie = 0
@@ -121,7 +122,6 @@ local questions = {
     }
 }
 }
-local update_started = false
 function main()
     while not isSampAvailable() do wait(100) end
     
@@ -160,13 +160,13 @@ function main()
     end)
 	
 	
- -- Loop care asteapta sa te loghezi (sa fii spawnat pe harta)
+-- Bucla care verifica logarea
     lua_thread.create(function()
-        -- Cat timp playerul nu e spawned (e la login), asteptam
+        -- Asteptam pana cand treci de login (spawned)
         while not sampIsLocalPlayerSpawned() do wait(1000) end
         
-        -- Dupa ce te-ai spawnat, mai asteptam 3 secunde sa treaca mesajele serverului
-        wait(3000)
+        -- Dupa spawn, asteptam 4 secunde sa se incarce totul
+        wait(4000)
         
         if not update_started then
             checkUpdate()
@@ -391,21 +391,19 @@ end
 
 function checkUpdate()
     lua_thread.create(function()
-        -- Păcălim cache-ul GitHub cu os.time()
+        -- Anti-cache: adaugam os.time() la link
         local ok, response = pcall(requests.get, update_url .. "?t=" .. os.time())
-        
         if ok and response.status_code == 200 then
             local json = response.json()
-            
             if json and json.version > script_version then
-                -- Afișăm dialogul
+                -- Afisare dialog
                 sampShowDialog(1337, "{FFFF00}Update Disponibil", "{FFFFFF}O noua versiune ({33CC33}v" .. json.version .. "{FFFFFF}) este gata!\n\n{FFFFFF}Vrei sa o instalezi?", "Update", "Anuleaza", 0)
                 
+                -- Asteptare raspuns dialog
                 local result, button = 0, -1
                 while result == 0 do
                     wait(0)
                     result, button = sampHasDialogRespond(1337)
-                    
                     if result == 1 then
                         if button == 1 then
                             sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca versiunea {33CC33}v" .. json.version .. "{FFFFFF}...", -1)
@@ -416,14 +414,11 @@ function checkUpdate()
                                 f:write(dl_res.text)
                                 f:close()
                                 
-                                -- Mesajul de succes pe care l-ai cerut
-                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Modul a fost actualizat cu succes la versiunea v" .. json.version .. "!", -1)
-                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Restartare automata...", -1)
-                                
-                                wait(2000)
+                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Modul a fost actualizat cu succes la v" .. json.version .. "!", -1)
+                                wait(1000)
                                 thisScript():reload()
                             else
-                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la descarcare!", -1)
+                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la download!", -1)
                             end
                         end
                         break
