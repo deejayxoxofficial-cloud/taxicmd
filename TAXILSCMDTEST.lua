@@ -2,8 +2,8 @@ local requests = require 'requests'
 local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
-local script_version = 2.1
-local last_update = "05/03/2026 - 11:55"
+local script_version = 1.5
+local last_update = "01/03/2026 - 04:55"
 local script_name = "TAXICMD"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXICMD.lua"
@@ -114,39 +114,20 @@ local questions = {
         }
     },
     practic = {
-        "Testul teoretic s-a incheiat, sa trecem la cel practic.",
-        "Pentru ocolire vei primit 0.5/3, pentru locatie nestiuta vei primi 1/3.",
-        "Punctajul pe care l-ai obtinut la teoretic este separat de cel practic.",
-		"Mult succes!"
+        "Proba teoretica a fost trecuta cu succes!",
+        "Acum vom incepe proba practica.",
+        "Greselile de la proba practica au fost setate la (0/3)."
     }
 }
-local updateAttempted = false
 
-function sampev.onServerMessage(color, text)
-    -- Verifică dacă mesajul de logare apare în chat
-    if (text:find("Te-ai logat cu succes") or text:find("Welcome back")) and not updateAttempted then
-        updateAttempted = true 
-        lua_thread.create(function()
-            wait(5000) -- Așteptăm 5 secunde să treacă toate mesajele de început
-            checkUpdate()
-        end)
-    end
-end
 function main()
     while not isSampAvailable() do wait(100) end
     
     sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Mod creat de {FFFF00}Eqi(N)oux.{FFFFFF} from {FFFF00}buGGed.ro", -1)
     sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Scrie {FFFF00}/taxicmd{FFFFFF} pentru lista de comenzi si ce fac acestea.", -1)
 
-	lua_thread.create(function()
-        wait(120000) -- 120 de secunde (2 minute)
-        if checkUpdate then 
-            checkUpdate() 
-        end
-    end)
-
-    wait(-1)
-end
+    -- Verificam daca exista functia de update inainte de a o apela
+    if checkUpdate then checkUpdate() end
 
     sampRegisterChatCommand("taxicmd", showHelp)
    -- sampRegisterChatCommand("comenzi", showCommands)
@@ -177,23 +158,16 @@ end
         greseli_teorie, greseli_practic = 0, 0
         sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Scoruri resetate manual.", -1)
     end)
-	
-	
-	lua_thread.create(function()
-        wait(120000) -- 120 de secunde (2 minute)
-        if checkUpdate then 
-            checkUpdate() 
-        end
-    end)
 
     wait(-1)
 end
+
 function showUpdates()
     local updateLog = "{FFFFFF}{FFFF00}Ce este nou?\n\n" ..
                       "{33CC33}[+] {FFFFFF}La /tg 2 intrebarea era prea lunga pentru un rand, acum e pe 2 randuri.\n" ..
-                      "{33CC33}[+] {FFFFFF}La /practic au fost adaugate mesajele de la vechiul CMD.\n" ..
-                      "{33CC33}[+] {FFFFFF}Modificata functia de AUTO-UPDATE care aparea inainte de logarea pe server.\n" ..
-                      "{33CC33}[+] {FFFFFF}Daca exista vreun update al modului, o sa apare aproximativ dupa 2 minute de la logarea pe server.\n\n" ..
+                      "{33CC33}[+] {FFFFFF}Comanda /teor acum verifica ID-ul si distanta.\n" ..
+                      "{33CC33}[+] {FFFFFF}Corectat bug-ul de crash la intrebarile lungi.\n" ..
+                      "{33CC33}[+] {FFFFFF}Adaugat jurnal de actualizari (/taxicmdupdates).\n\n" ..
                       "{A9A9A9}Ultima modificare efectuata pe: " .. last_update
                       
     sampShowDialog(1339, "{FFFF00}Update Log - " .. script_name, updateLog, "Inchide", "", 0)
@@ -406,32 +380,14 @@ function checkUpdate()
         if ok and response.status_code == 200 then
             local json = response.json()
             if json and json.version > script_version then
-                -- Afisam dialogul de update
-                sampShowDialog(1337, "{FFFF00}Update Disponibil - " .. script_name, "{FFFFFF}O noua versiune a fost gasita pe server!\n\n{FFFFFF}Versiune curenta: {FF0000}"..script_version.."{FFFFFF}\nVersiune noua: {33CC33}"..json.version.."{FFFFFF}\n\n{FFFF00}Doresti sa instalezi actualizarea acum?", "Da", "Nu", 0)
-                
-                -- Asteptam pana cand jucatorul interactioneaza cu dialogul
-                local result, button, list, input = 0, -1, -1, ""
-                while result == 0 do
-                    wait(0)
-                    result, button, list, input = sampHasDialogRespond(1337)
-                    
-                    if result == 1 then -- Dialogul a fost inchis
-                        if button == 1 then -- S-a apasat butonul "Da"
-                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca noua versiune, te rugam asteapta...", -1)
-                            
-                            local dl_ok, dl_res = pcall(requests.get, download_url)
-                            if dl_ok and dl_res.status_code == 200 then
-                                local f = io.open(thisScript().path, "wb")
-                                f:write(dl_res.text)
-                                f:close()
-                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Update finalizat! Scriptul se restarteaza...", -1)
-                                wait(1000)
-                                thisScript():reload()
-                            else
-                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la descarcare! Incearca mai tarziu.", -1)
-                            end
-                        end
-                        break -- Iesim din bucla de asteptare
+                sampShowDialog(1337, "Update", "Update disponibil!", "Da", "Nu", 0)
+                local result, button = sampHasDialogRespond(1337)
+                if result and button == 1 then
+                    local dl = requests.get(download_url)
+                    if dl.status_code == 200 then
+                        local f = io.open(thisScript().path, "wb")
+                        f:write(dl.text) f:close()
+                        thisScript():reload()
                     end
                 end
             end
