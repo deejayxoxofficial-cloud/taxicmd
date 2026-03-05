@@ -2,7 +2,7 @@ local requests = require 'requests'
 local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
-local script_version = 2.5
+local script_version = 2.6
 local last_update = "05/03/2026 - 14:25"
 local script_name = "TAXICMD"
 -- Link-urile update(cu anti-cache inclus direct)
@@ -461,3 +461,4 @@ function downloadNewVersion(v)
         end
     end)
 end
+
