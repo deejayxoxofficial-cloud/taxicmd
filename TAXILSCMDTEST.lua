@@ -2,8 +2,8 @@ local requests = require 'requests'
 local sampev = require 'lib.samp.events'
 
 -- CONFIGURARE AUTO-UPDATE
-local script_version = 1.6
-local last_update = "05/03/2026 - 11:05"
+local script_version = 1.7
+local last_update = "05/03/2026 - 11:34"
 local script_name = "TAXICMD"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXICMD.lua"
@@ -127,8 +127,16 @@ function main()
     sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Mod creat de {FFFF00}Eqi(N)oux.{FFFFFF} from {FFFF00}buGGed.ro", -1)
     sampAddChatMessage("{FFFF00}[" .. script_name .. "]{FFFFFF} Scrie {FFFF00}/taxicmd{FFFFFF} pentru lista de comenzi si ce fac acestea.", -1)
 
-    -- Verificam daca exista functia de update inainte de a o apela
-    if checkUpdate then checkUpdate() end
+    lua_thread.create(function()
+        -- Asteptam pana cand jucatorul este spawnat (a trecut de login)
+        while not sampIsLocalPlayerSpawned() do wait(1000) end
+        
+        -- Dupa ce s-a spawnat, mai asteptam 3 secunde sa se incarce textdraw-urile
+        wait(3000)
+        
+        -- Acum pornim verificarea de update
+        if checkUpdate then checkUpdate() end
+    end)
 
     sampRegisterChatCommand("taxicmd", showHelp)
    -- sampRegisterChatCommand("comenzi", showCommands)
@@ -167,7 +175,7 @@ function showUpdates()
     local updateLog = "{FFFFFF}{FFFF00}Ce este nou?\n\n" ..
                       "{33CC33}[+] {FFFFFF}La /tg 2 intrebarea era prea lunga pentru un rand, acum e pe 2 randuri.\n" ..
                       "{33CC33}[+] {FFFFFF}La /practic au fost adaugate mesajele de la vechiul CMD.\n" ..
-                     -- "{33CC33}[+] {FFFFFF}Corectat bug-ul de crash la intrebarile lungi.\n" ..
+                      "{33CC33}[+] {FFFFFF}Modificata functia de AUTO-UPDATE care aparea inainte de logarea pe server.\n" ..
                      -- "{33CC33}[+] {FFFFFF}Adaugat jurnal de actualizari (/taxicmdupdates).\n\n" ..
                       "{A9A9A9}Ultima modificare efectuata pe: " .. last_update
                       
@@ -381,14 +389,27 @@ function checkUpdate()
         if ok and response.status_code == 200 then
             local json = response.json()
             if json and json.version > script_version then
-                sampShowDialog(1337, "Update", "Update disponibil!", "Da", "Nu", 0)
-                local result, button = sampHasDialogRespond(1337)
-                if result and button == 1 then
-                    local dl = requests.get(download_url)
-                    if dl.status_code == 200 then
-                        local f = io.open(thisScript().path, "wb")
-                        f:write(dl.text) f:close()
-                        thisScript():reload()
+                -- Afisam dialogul
+                sampShowDialog(1337, "{FFFF00}Update Disponibil", "{FFFFFF}O noua versiune a modului {FFFF00}" .. script_name .. " {FFFFFF}este disponibila!\n\n{FFFFFF}Versiune curenta: {FF0000}" .. script_version .. "\n{FFFFFF}Versiune noua: {33CC33}" .. json.version .. "\n\n{FFFFFF}Doresti sa efectuezi update-ul acum?", "Da", "Nu", 0)
+                
+                -- Asteptam raspunsul la dialog
+                local result, button, list, input = 0, -1, -1, ""
+                while result == 0 do
+                    wait(0)
+                    result, button, list, input = sampHasDialogRespond(1337)
+                    if result == 1 and button == 1 then
+                        sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca actualizarea, te rugam asteapta...", -1)
+                        local dl = requests.get(download_url)
+                        if dl.status_code == 200 then
+                            local f = io.open(thisScript().path, "wb")
+                            f:write(dl.text) 
+                            f:close()
+                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Update finalizat cu succes! Modul se restarteaza...", -1)
+                            wait(1000)
+                            thisScript():reload()
+                        else
+                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FF0000}Eroare la descarcare!", -1)
+                        end
                     end
                 end
             end
