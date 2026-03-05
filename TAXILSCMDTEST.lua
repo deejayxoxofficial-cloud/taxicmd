@@ -7,7 +7,8 @@ local last_update = "05/03/2026 - 13:40"
 local script_name = "TAXICMD"
 local update_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/version.json" 
 local download_url = "https://raw.githubusercontent.com/deejayxoxofficial-cloud/taxicmd/refs/heads/main/TAXICMD.lua"
-local update_started = false
+local update_ready = false
+local new_version = ""
 
 -- VARIABILE TEST
 local greseli_teorie = 0
@@ -121,7 +122,7 @@ local questions = {
 		"Mult succes!"
     }
 }
-}
+
 function main()
     while not isSampAvailable() do wait(100) end
     
@@ -160,18 +161,10 @@ function main()
     end)
 	
 	
--- Bucla care verifica logarea
-    lua_thread.create(function()
-        -- Asteptam pana cand treci de login (spawned)
+lua_thread.create(function()
         while not sampIsLocalPlayerSpawned() do wait(1000) end
-        
-        -- Dupa spawn, asteptam 4 secunde sa se incarce totul
-        wait(4000)
-        
-        if not update_started then
-            checkUpdate()
-            update_started = true
-        end
+        wait(5000) -- Asteptam 5 secunde dupa spawn
+        checkUpdate()
     end)
 
     wait(-1)
@@ -391,40 +384,41 @@ end
 
 function checkUpdate()
     lua_thread.create(function()
-        -- Anti-cache: adaugam os.time() la link
         local ok, response = pcall(requests.get, update_url .. "?t=" .. os.time())
         if ok and response.status_code == 200 then
             local json = response.json()
             if json and json.version > script_version then
-                -- Afisare dialog
-                sampShowDialog(1337, "{FFFF00}Update Disponibil", "{FFFFFF}O noua versiune ({33CC33}v" .. json.version .. "{FFFFFF}) este gata!\n\n{FFFFFF}Vrei sa o instalezi?", "Update", "Anuleaza", 0)
-                
-                -- Asteptare raspuns dialog
-                local result, button = 0, -1
-                while result == 0 do
-                    wait(0)
-                    result, button = sampHasDialogRespond(1337)
-                    if result == 1 then
-                        if button == 1 then
-                            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Se descarca versiunea {33CC33}v" .. json.version .. "{FFFFFF}...", -1)
-                            
-                            local dl_ok, dl_res = pcall(requests.get, download_url .. "?t=" .. os.time())
-                            if dl_ok and dl_res.status_code == 200 then
-                                local f = io.open(thisScript().path, "wb")
-                                f:write(dl_res.text)
-                                f:close()
-                                
-                                sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Modul a fost actualizat cu succes la v" .. json.version .. "!", -1)
-                                wait(1000)
-                                thisScript():reload()
-                            else
-                                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la download!", -1)
-                            end
-                        end
-                        break
-                    end
-                end
+                new_version = tostring(json.version)
+                update_ready = true
+                -- Afisam dialogul cu ID specific (exemplu: 2222)
+                sampShowDialog(2222, "{FFFF00}Update Disponibil v" .. new_version, "{FFFFFF}O noua versiune a fost gasita!\n\n{FFFFFF}Apasati {FFFF00}Update {FFFFFF}pentru instalare automata.\n{33CC33}(Dupa instalare, modul se va restarta singur)", "Update", "Anuleaza", 0)
             end
         end
     end)
+end
+-- ACEASTA ESTE FUNCTIA CARE FACE UPDATE-UL CAND APESI BUTONUL
+function sampev.onDialogResponse(dialogId, response, listboxId, input)
+    if dialogId == 2222 and response == 1 then -- Daca e dialogul nostru si a apasat butonul 1 (Update)
+        lua_thread.create(function()
+            sampAddChatMessage("{FFFF00}[" .. script_name .. "] {FFFFFF}Descarcare in curs... Te rugam sa astepti.", -1)
+            
+            local dl_ok, dl_res = pcall(requests.get, download_url .. "?t=" .. os.time())
+            if dl_ok and dl_res.status_code == 200 then
+                -- Deschidem fisierul curent pentru a scrie noul cod peste el
+                local f = io.open(thisScript().path, "wb")
+                if f then
+                    f:write(dl_res.text)
+                    f:close()
+                    
+                    sampAddChatMessage("{FFFF00}[" .. script_name .. "] {33CC33}Succes! Versiunea v" .. new_version .. " a fost instalata.", -1)
+                    wait(1000)
+                    thisScript():reload()
+                else
+                    sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare: Nu am permisiuni de scriere (ruleaza GTA ca Admin)!", -1)
+                end
+            else
+                sampAddChatMessage("{FF0000}[" .. script_name .. "] Eroare la download de pe GitHub (Cod: " .. tostring(dl_res.status_code) .. ")", -1)
+            end
+        end)
+    end
 end
